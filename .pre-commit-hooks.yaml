@@ -1,3 +1,11 @@
+- id: voldemort
+  name: voldemort
+  language: python
+  entry: voldemort
+  description: Find unused Python code with Django-aware static analysis.
+  types: [python]
+  pass_filenames: false
+  require_serial: true
 - id: vulture
   name: vulture
   language: python

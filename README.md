@@ -1,365 +1,245 @@
-# Vulture - Find dead code
+# Voldemort — find dead code in Django projects
 
-[![PyPI Version](https://img.shields.io/pypi/v/vulture.svg)](https://pypi.python.org/pypi/vulture)
-[![Conda Version](https://img.shields.io/conda/vn/conda-forge/vulture.svg)](https://anaconda.org/conda-forge/vulture)
-![CI:Test](https://github.com/jendrikseipp/vulture/workflows/CI/badge.svg)
-[![Codecov Badge](https://codecov.io/gh/jendrikseipp/vulture/branch/main/graphs/badge.svg)](https://codecov.io/gh/jendrikseipp/vulture?branch=main)
+Voldemort extends [Vulture](https://github.com/jendrikseipp/vulture) with static
+knowledge of Django's conventions. It recognizes specific definitions consumed
+by Django without marking every matching name in your project as used.
 
-Vulture finds unused code in Python programs. This is useful for
-cleaning up and finding errors in large code bases. If you run Vulture
-on both your library and test suite you can find untested code.
+Supports **models, forms, views, admin, signals, and Django startup conventions**,
+with opt-in template scanning and runtime call evidence. Static analysis never
+imports your project, calls `django.setup()`, or requires Django to be installed.
 
-Due to Python's dynamic nature, static code analyzers like Vulture are
-likely to miss some dead code. Also, code that is only called implicitly
-may be reported as unused. Nonetheless, Vulture can be a very helpful
-tool for higher code quality.
+## Installation and usage
 
-## Features
+Requires Python 3.10 or newer. Install this checkout:
 
-* fast: uses static code analysis
-* tested: tests itself and has complete test coverage
-* complements pyflakes and has the same output syntax
-* sorts unused classes and functions by size with `--sort-by-size`
+```sh
+python -m pip install -e .
+voldemort . --django-app shop
+# Discover installed apps and configured callbacks from a settings module:
+voldemort . --django-settings project.settings --explain
+# Equivalent without installing a console script:
+python -m voldemort . --django-app shop
+```
 
-## Installation
+Voldemort provides both the `voldemort` and `vulture` commands and packages.
+Use a separate virtual environment if you also use the upstream Vulture
+distribution, since both distributions install the same `vulture` files.
 
-    $ pip install vulture
+Run from the directory containing your app packages. Select a settings module
+with `--django-settings`, or repeat `--django-app` for each installed app, using
+an app package (`shop`) or AppConfig path (`shop.apps.ShopConfig`). Explicit apps
+override the settings module's `INSTALLED_APPS` for discovery. Use
+`--project-root` if your packages live elsewhere, such as `src/`. Scan all relevant
+source modules so aliases, inheritance, and imports can resolve.
 
-## Usage
+```sh
+voldemort src/ --project-root src --django-app project.shop --explain
+```
 
-    $ vulture myscript.py  # or
-    $ python3 -m vulture myscript.py
-    $ vulture myscript.py mypackage/
-    $ vulture myscript.py --min-confidence 100  # Only report 100% dead code.
+`--explain` writes retained definitions, rules, and reasons to stderr. Dead-code
+findings remain on stdout in Vulture's existing format. Coverage notes on stderr
+identify cases the static Django rules cannot resolve.
 
-The provided arguments may be Python files or directories. For each
-directory Vulture analyzes all contained
-<span class="title-ref">\*.py</span> files.
+Exit codes match Vulture: 0 for no findings, 3 for dead code, 1 for invalid input,
+and 2 for invalid command-line arguments or configuration.
 
-After you have found and deleted dead code, run Vulture again, because
-it may discover more dead code.
-
-## Types of unused code
-
-In addition to finding unused functions, classes, etc., Vulture can detect
-unreachable code. Each chunk of dead code is assigned a *confidence value*
-between 60% and 100%, where a value of 100% signals that it is certain that the
-code won't be executed. Values below 100% are *very rough* estimates (based on
-the type of code chunk) for how likely it is that the code is unused.
-
-| Code type                                              | Confidence value |
-|--------------------------------------------------------|------------------|
-| function/method/class argument, unreachable code       | 100%             |
-| import                                                 | 90%              |
-| attribute, class, function, method, property, variable | 60%              |
-
-You can use the `--min-confidence` flag to set the minimum confidence
-for code to be reported as unused. Use `--min-confidence 100` to only
-report code that is guaranteed to be unused within the analyzed files.
-
-## Handling false positives
-
-When Vulture incorrectly reports chunks of code as unused, you have
-several options for suppressing the false positives. If fixing your false
-positives could benefit other users as well, please file an issue report.
-
-#### Whitelists
-
-The recommended option is to add used code that is reported as unused to a
-Python module and add it to the list of scanned paths. To obtain such a
-whitelist automatically, pass `--make-whitelist` to Vulture:
-
-    $ vulture mydir --make-whitelist > whitelist.py
-    $ vulture mydir whitelist.py
-
-Note that the resulting `whitelist.py` file will contain valid Python
-syntax, but for Python to be able to *run* it, you will usually have to
-make some modifications.
-
-We collect whitelists for common Python modules and packages in
-`vulture/whitelists/` (pull requests are welcome).
-
-#### Ignoring files
-
-If you want to ignore a whole file or directory, use the `--exclude` parameter
-(e.g., `--exclude "*settings.py,*/docs/*.py,*/test_*.py,*/.venv/*.py"`). The
-exclude patterns are matched against absolute paths.
-
-#### Flake8 noqa comments
-
-<!-- Hide noqa docs until we decide whether we want to support it.
-Another way of ignoring errors is to annotate the line causing the false
-positive with `# noqa: <ERROR_CODE>` in a trailing comment (e.g., `#
-noqa: V103`). The `ERROR_CODE` specifies what kind of dead code to
-ignore (see the table below for the list of error codes). In case no
-error code is specified, Vulture ignores all results for the line.
-(Note that the line number for decorated objects is the line number of
-the first decorator.)
--->
-
-For compatibility with [flake8](https://flake8.pycqa.org/), Vulture
-supports the [F401 and
-F841](https://flake8.pycqa.org/en/latest/user/error-codes.html) error
-codes for ignoring unused imports (`# noqa: F401`) and unused local
-variables (`# noqa: F841`). However, we recommend using whitelists instead
-of `noqa` comments, since `noqa` comments add visual noise to the code and
-make it harder to read.
-
-#### Ignoring names
-
-You can use `--ignore-names foo*,ba[rz]` to let Vulture ignore all names
-starting with `foo` and the names `bar` and `baz`. Additionally, the
-`--ignore-decorators` option can be used to ignore the names of functions
-decorated with the given decorator (but not their arguments or function body).
-This is helpful for example in Flask
-projects, where you can use `--ignore-decorators "@app.route"` to ignore all
-function names with the `@app.route` decorator. Note that Vulture simplifies
-decorators it cannot parse: `@foo.bar(x, y)` becomes "@foo.bar" and
-`@foo.bar(x, y).baz` becomes "@" internally.
-
-We recommend using whitelists instead of `--ignore-names` or
-`--ignore-decorators` whenever possible, since whitelists are
-automatically checked for syntactic correctness when passed to Vulture
-and often you can even pass them to your Python interpreter and let it
-check that all whitelisted code actually still exists in your project.
-
-#### Marking unused variables
-
-There are situations where you can't just remove unused variables, e.g.,
-in function signatures. The recommended solution is to use the `del`
-keyword as described in the
-[PyLint manual](http://pylint-messages.wikidot.com/messages:w0613) and on
-[StackOverflow](https://stackoverflow.com/a/14836005):
+## Django support
 
 ```python
-def foo(x, y):
-    del y
-    return x + 3
+from django.db import models
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)  # Django field declaration
+
+    def clean(self):                         # Django validation hook
+        spare = 42                          # Still reported as unused
+
+class Ordinary:
+    def clean(self):                        # Still reported as unused
+        pass
 ```
 
-Vulture will also ignore all variables that start with an underscore, so
-you can use `_x, y = get_pos()` to mark unused tuple assignments or
-function arguments, e.g., `def foo(x, _y)`.
+Each exemption identifies a declaration by file, line, and name. Voldemort does
+not add Django magic names to Vulture's global whitelist. Its rules cover:
 
-#### Minimum confidence
+- Known Django model/form fields and statically resolved local field subclasses.
+- Model and form hooks, including hooks inherited from local mixins.
+- Form `clean_<field>` methods when the field actually exists, including inherited
+  fields and statically resolved ModelForm fields.
+- Documented model and ModelForm `Meta` options; misspellings remain candidates.
+- Model classes discovered from configured apps' `models.py` or
+  `models/__init__.py`, following resolvable imports into scanned modules.
+- Import aliases, relative imports, and inheritance across scanned files.
+- Class-based view hooks and documented configuration appropriate to their
+  resolved Django base, including local mixins and cooperative `super()` calls.
+- Selected AppConfig classes, `ready()` imports, and their registration effects.
+- Admin registrations, scoped display/action/readonly callbacks, inlines, custom
+  admin sites, and admin `Media` configuration. `@admin.display` and `@admin.action`
+  alone do not make a callable used.
+- Signal receivers registered through resolved decorators or `connect()` calls.
+- Management command and migration entry classes in installed apps, with
+  documented hooks and attributes. Ordinary helpers remain reportable.
+- Recognized settings strings for middleware, authentication backends, context
+  processors, WSGI/ASGI callables, custom admin sites, and URL configurations.
+- URL `include()` references, resolver metadata, and configured error handlers.
+- Template references to registered custom tags and filters, and methods or
+  properties reached through statically known view context types.
 
-Raise the minimum [confidence value](#types-of-unused-code) with the `--min-confidence` flag.
+Settings discovery understands bounded literal expressions, simple aliases,
+list/tuple concatenation, dictionary composition, and imports from scanned base
+settings. Environment-dependent function calls are not evaluated. Mutated or
+unresolved values produce coverage notes rather than broad exemptions.
 
-#### Unreachable code
+A form class is not automatically used because it subclasses `Form`. Likewise,
+an unimported `models_extra.py` is not automatically active because it belongs to
+an installed app. Retained model fields describe schema; retaining a field does
+not prove that application code queries it or that its database column is safe
+to remove.
 
-If Vulture complains about code like `if False:`, you can use a Boolean
-flag `debug = False` and write `if debug:` instead. This makes the code
-more readable and silences Vulture.
+Framework exemptions leave unused locals, imports, parameters, arbitrary methods,
+and unreachable code visible. Callback parameters are not automatically exempted.
 
-#### Forward references for type annotations
+## Templates
 
-See [#216](https://github.com/jendrikseipp/vulture/issues/216). For
-example, instead of `def foo(arg: "Sequence"): ...`, we recommend using
+Select template directories or files explicitly. Directories are searched for
+`.html` files; an explicitly selected file can have any extension. Repeat
+`--django-template` to scan multiple locations:
 
-``` python
-from __future__ import annotations
-
-def foo(arg: Sequence):
-    ...
+```sh
+voldemort . --django-settings project.settings \
+  --django-template shop/templates --explain
 ```
 
+`{% load %}` references resolve against installed apps' `templatetags` modules
+and statically configured template libraries. Only tags and filters used in a
+template retain their registered callables. Comment and verbatim blocks do not
+create references.
+
+Dotted lookups can retain methods and properties when the context object's
+class is known from a class-based view or a supported literal `render()` call.
+For example, `{{ object.display_title }}` can retain `Book.display_title` when
+a `DetailView` declares `model = Book` and selects that template. An untyped
+`{{ object.display_title }}` does not retain every method with that name.
+Unresolved context and dynamic template selection produce coverage notes.
+The Python scan's `--exclude` patterns also apply to selected templates.
+
+Context type inference requires literal template/context attributes and default
+Django view behavior. Overrides of request handling, queryset, context, or
+rendering methods cancel inference. Values returned by model methods or tag
+callbacks, model relation traversal, and `block.super` are outside the current
+inference rules.
+
+## Runtime evidence
+
+The recorder explicitly executes a script or module under a Python call
+profiler. Run it with the dependencies and environment needed by your project:
+
+```sh
+python -m voldemort.runtime --output .voldemort-calls.json \
+  --project-root . --script manage.py -- test
+# Or run a module, such as your existing test suite:
+python -m voldemort.runtime --output .voldemort-calls.json \
+  --project-root . --module pytest -- -q
+```
+
+Pass the resulting file to the normal analyzer; repeat `--runtime-evidence` to
+combine recordings:
+
+```sh
+voldemort . --django-settings project.settings \
+  --django-template shop/templates \
+  --runtime-evidence .voldemort-calls.json --explain
+```
+
+An observation retains only the exact function, method, or property that ran,
+matched by project-relative path, Python qualified name, declaration line, and
+source hash. Changed source and unmatched observations produce coverage notes.
+Unused parameters and locals remain reportable. Runtime evidence also works
+with `--no-django`.
+
+Recording stores call identities and source hashes, without argument values or
+locals. It covers the recorder's Python process; child processes require their
+own recordings. Unobserved code receives no extra exemption, and absence from
+a recording does not prove that code is dead. Normal analysis only reads the
+recording and never executes the project.
 
 ## Configuration
 
-You can also store command line arguments in `pyproject.toml` under the
-`tool.vulture` section. Simply remove leading dashes and replace all
-remaining dashes with underscores.
+```toml
+[tool.voldemort]
+paths = ["project", "shop", "tests"]
+project_root = "."
+exclude = ["*/.venv/*"]
+min_confidence = 0
+explain = false
+# Optional: combine call recordings without executing the project.
+# runtime_evidence = [".voldemort-calls.json"]
 
-Options given on the command line have precedence over options in
-`pyproject.toml`.
-
-Example Config:
-
-``` toml
-[tool.vulture]
-exclude = ["*file*.py", "dir/"]
-ignore_decorators = ["@app.route", "@require_*"]
-ignore_names = ["visit_*", "do_*"]
-make_whitelist = true
-min_confidence = 80
-paths = ["myscript.py", "mydir", "whitelist.py"]
-sort_by_size = true
-verbose = true
+[tool.voldemort.django]
+enabled = true
+settings = "project.settings"
+# Optional: scan template references.
+# templates = ["shop/templates"]
+# Optional: override the settings module's installed app list.
+# apps = ["shop"]
 ```
 
-Vulture will automatically look for a `pyproject.toml` in the current working directory.
+Command-line options override configuration. Use `--config path/to/pyproject.toml`
+to select another file. `voldemort` reads `[tool.voldemort]`; the retained `vulture`
+command continues to read `[tool.vulture]`.
 
-To use a `pyproject.toml` in another directory, you can use the `--config path/to/pyproject.toml` flag.
+Voldemort also supports Vulture's `--ignore-names`, `--ignore-decorators`,
+`--make-whitelist`, `--sort-by-size`, and `--min-confidence` flags. Use
+`--no-django` for Vulture's original analysis. See `voldemort --help` and
+[the upstream Vulture documentation](VULTURE.md) for general behavior.
 
-## Integrations
-
-You can use a [pre-commit](https://pre-commit.com/#install) hook to run
-Vulture before each commit. For this, install pre-commit and add the
-following to the `.pre-commit-config.yaml` file in your repository:
-
-```yaml
-repos:
-  - repo: https://github.com/jendrikseipp/vulture
-    rev: 'v2.3'  # or any later Vulture version
-    hooks:
-      - id: vulture
-```
-
-Then run `pre-commit install`. Finally, create a `pyproject.toml` file
-in your repository and specify all files that Vulture should check under
-`[tool.vulture] --> paths` (see above).
-
-There's also a [GitHub Action for Vulture](https://github.com/gtkacz/vulture-action),
-a [VS Code extension](https://marketplace.visualstudio.com/items?itemName=sebastienfi.dead-code-finder)
-and you can use Vulture programmatically. For example:
-
-``` python
-import vulture
-
-v = vulture.Vulture()
-v.scavenge(['.'])
-unused_code = v.get_unused_code()  # returns a list of `Item` objects
-```
-
-## How does it work?
-
-Vulture uses the `ast` module to build abstract syntax trees for all
-given files. While traversing all syntax trees it records the names of
-defined and used objects. Afterwards, it reports the objects which have
-been defined, but not used. This analysis ignores scopes and only takes
-object names into account.
-
-Vulture also detects unreachable code by looking for code after
-`return`, `break`, `continue` and `raise` statements, and by searching
-for unsatisfiable `if`- and `while`-conditions.
-
-## Sort by size
-
-When using the `--sort-by-size` option, Vulture sorts unused code by its
-number of lines. This helps developers prioritize where to look for dead
-code first.
-
-## Examples
-
-Consider the following Python script (`dead_code.py`):
-
-``` python
-import os
-
-class Greeter:
-    def greet(self):
-        print("Hi")
-
-def hello_world():
-    message = "Hello, world!"
-    greeter = Greeter()
-    func_name = "greet"
-    greet_func = getattr(greeter, func_name)
-    greet_func()
-
-if __name__ == "__main__":
-    hello_world()
-```
-
-Calling :
-
-    $ vulture dead_code.py
-
-results in the following output:
-
-    dead_code.py:1: unused import 'os' (90% confidence)
-    dead_code.py:4: unused function 'greet' (60% confidence)
-    dead_code.py:8: unused variable 'message' (60% confidence)
-
-Vulture correctly reports `os` and `message` as unused but it fails to
-detect that `greet` is actually used. The recommended method to deal
-with false positives like this is to create a whitelist Python file.
-
-**Preparing whitelists**
-
-In a whitelist we simulate the usage of variables, attributes, etc. For
-the program above, a whitelist could look as follows:
-
-``` python
-# whitelist_dead_code.py
-from dead_code import Greeter
-Greeter.greet
-```
-
-Alternatively, you can pass `--make-whitelist` to Vulture and obtain an
-automatically generated whitelist.
-
-Passing both the original program and the whitelist to Vulture
-
-    $ vulture dead_code.py whitelist_dead_code.py
-
-makes Vulture ignore the `greet` method:
-
-    dead_code.py:1: unused import 'os' (90% confidence)
-    dead_code.py:8: unused variable 'message' (60% confidence)
-
-<!-- Hide noqa docs until we decide whether we want to support it.
-**Using "# noqa"**
+## Python API
 
 ```python
-import os  # noqa
+from voldemort import Voldemort
 
-class Greeter:  # noqa: V102
-    def greet(self):  # noqa: V103
-        print("Hi")
+analyzer = Voldemort(
+    django_settings="project.settings",
+    django_templates=["shop/templates"],
+    runtime_evidence=[".voldemort-calls.json"],
+    project_root=".",
+)
+analyzer.scavenge(["project", "shop", "tests"])
+findings = analyzer.get_unused_code()
+evidence = analyzer.django_evidence
+notes = analyzer.django_notes
+observed = analyzer.runtime_evidence
+runtime_notes = analyzer.runtime_notes
 ```
 
-## Error codes
+## Limits and next steps
 
-For compatibility with [flake8](https://flake8.pycqa.org/), Vulture
-supports the [F401 and
-F841](https://flake8.pycqa.org/en/latest/user/error-codes.html) error
-codes.
+The initial contract catalog targets Django 5.2. Unsupported, dynamic, or
+unresolved declarations receive no broad Django exemption. Vulture still
+compares ordinary Python names globally, so its existing false positives and
+false negatives remain possible.
 
-| Error codes |    Description    |
-| ----------- | ----------------- |
-| V101        | Unused attribute  |
-| V102        | Unused class      |
-| V103        | Unused function   |
-| V104, F401  | Unused import     |
-| V105        | Unused property   |
-| V106        | Unused method     |
-| V107, F841  | Unused variable   |
-| V201        | Unreachable code  |
+Assignments that remove inherited form fields with `None` can still be reported
+as unused; the corresponding field cleaners remain reportable.
 
--->
+Third-party extensions and unsupported template syntax remain outside the static
+contracts. Dynamic registration, computed settings, unscanned bases, and arbitrary
+import side effects cannot be fully resolved. Migration references to historical model
+state are not treated as usage of today's model declarations. This analysis
+recognizes framework references; it does not prove complete runtime reachability.
+Runtime evidence supplements these contracts with observed calls; it does not
+establish complete runtime coverage.
 
-## Exit codes
+## Development
 
-| Exit code | Description                                                |
-|-----------|------------------------------------------------------------|
-| 0         | No dead code found                                         |
-| 1         | Invalid input (file missing, syntax error, wrong encoding) |
-| 2         | Invalid command line arguments                             |
-| 3         | Dead code found                                            |
+```sh
+python -m venv .venv
+.venv/bin/python -m pip install -e . pytest pytest-cov pint ruff build
+.venv/bin/python -m pytest
+.venv/bin/python -m ruff check .
+.venv/bin/python -m ruff format --check .
+.venv/bin/python -m build
+```
 
-## Similar programs
-
-  - [pyflakes](https://pypi.org/project/pyflakes/) finds unused imports
-    and unused local variables (in addition to many other programmatic
-    errors).
-  - [coverage](https://pypi.org/project/coverage/) finds unused code
-    more reliably than Vulture, but requires all branches of the code to
-    actually be run.
-  - [uncalled](https://pypi.org/project/uncalled/) finds dead code by
-    using the abstract syntax tree (like Vulture), regular expressions,
-    or both.
-  - [dead](https://pypi.org/project/dead/) finds dead code by using the
-    abstract syntax tree (like Vulture).
-
-## Participate
-
-Please visit <https://github.com/jendrikseipp/vulture> to report any
-issues or to make pull requests.
-
-  - Contributing guide:
-    [CONTRIBUTING.md](https://github.com/jendrikseipp/vulture/blob/main/CONTRIBUTING.md)
-  - Release notes:
-    [CHANGELOG.md](https://github.com/jendrikseipp/vulture/blob/main/CHANGELOG.md)
-  - Roadmap:
-    [TODO.md](https://github.com/jendrikseipp/vulture/blob/main/TODO.md)
+Voldemort is an MIT-licensed fork of Vulture by Jendrik Seipp and contributors.
+The upstream engine and `vulture` Python API are retained.
