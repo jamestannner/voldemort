@@ -1,3 +1,26 @@
+# Voldemort 0.1.0 (unreleased)
+
+* Add scoped, static Django model and form analysis, including import aliases,
+  local inheritance, field declarations, hooks, and documented Meta options.
+* Discover model entry points from explicitly configured app packages.
+* Add the `voldemort` command, Python API, configuration, and `--explain` output.
+* Preserve the original Vulture command and API.
+* Add scoped class-based view, AppConfig, admin, signal, management command,
+  migration, middleware, and authentication backend contracts.
+* Add `--django-settings` for static installed-app, callback, and URL discovery,
+  including split settings and selected AppConfig startup imports.
+* Follow exact admin callbacks and registration imports while preserving
+  unrelated methods, helper functions, callback parameters, and local dead code.
+* Distinguish same-line AST declarations in framework evidence so lambda
+  arguments are not hidden by a retained configuration assignment.
+* Add opt-in template scanning for custom tag/filter references and statically
+  typed context lookups, with exact definition evidence and coverage notes.
+* Add a separate runtime call recorder and source-validated positive evidence.
+  Observed calls retain exact definitions without hiding dead locals or treating
+  unobserved code as dead.
+
+# Upstream Vulture history
+
 # 2.17 (unreleased)
 
 * Add support for Python 3.15 and drop 3.9 (Hugo van Kemenade, #416).

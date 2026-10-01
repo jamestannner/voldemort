@@ -37,19 +37,25 @@ jobs:
         python -m pip install --upgrade build coveralls setuptools tox wheel
         python -m pip install -r requirements.txt
 
-    - name: Build Vulture wheel
+    - name: Build Voldemort wheel
       run: python -m build
 
-    - name: Install Vulture wheel
-      run: "python -m pip install --only-binary=:all: --ignore-installed --find-links=dist/ vulture"
+    - name: Install Voldemort wheel
+      shell: bash
+      run: python -m pip install dist/*.whl
 
     - name: Run Vulture
       run: |
-        vulture vulture/ tests/
-        python -m vulture vulture/ tests/
+        vulture vulture/ voldemort/ tests/
+        python -m vulture vulture/ voldemort/ tests/
 
     - name: Run tests
       run: python -m tox -e py
+
+    - name: Check Voldemort entry points
+      run: |
+        voldemort --version
+        python -m voldemort --help
 
     - name: Report coverage to Codecov
       uses: codecov/codecov-action@v6

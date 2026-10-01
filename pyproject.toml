@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vulture"
+name = "voldemort"
 dynamic = ["version"]
-description = "Find dead code"
+description = "Find dead Python code with Django-aware static analysis"
 readme = { file = "README.md", content-type = "text/markdown" }
 keywords = ["dead code removal"]
 requires-python = ">=3.10"
@@ -14,7 +14,7 @@ authors = [
   { name = "Jendrik Seipp", email = "jendrikseipp@gmail.com" },
 ]
 classifiers = [
-  "Development Status :: 5 - Production/Stable",
+  "Development Status :: 3 - Alpha",
   "Environment :: Console",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
@@ -35,24 +35,26 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jendrikseipp/vulture"
-Repository = "https://github.com/jendrikseipp/vulture"
-Changelog = "https://github.com/jendrikseipp/vulture/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/jamestannner/voldemort"
+Repository = "https://github.com/jamestannner/voldemort"
+Changelog = "https://github.com/jamestannner/voldemort/blob/main/CHANGELOG.md"
 
 [project.scripts]
+voldemort = "voldemort.core:main"
 vulture = "vulture.core:main"
 
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.packages.find]
+include = ["voldemort", "voldemort.*", "vulture", "vulture.*"]
 exclude = ["tests", "tests.*"]
 
 [tool.setuptools.package-data]
 vulture = ["whitelists/*.py"]
 
 [tool.setuptools.dynamic]
-version = { attr = "vulture.version.__version__" }
+version = { attr = "voldemort.version.__version__" }
 
 [tool.ruff]
 exclude = [
@@ -138,4 +140,4 @@ omit = [".tox/*"]
 parallel = true
 
 [tool.pytest.ini_options]
-addopts = "--cov vulture --cov-report=html --cov-report=term --cov-report=xml --cov-append"
+addopts = "--cov vulture --cov voldemort --cov-report=html --cov-report=term --cov-report=xml --cov-append"

@@ -120,6 +120,7 @@ class Item:
 
     __slots__ = (
         "confidence",
+        "definition_node",
         "filename",
         "first_lineno",
         "last_lineno",
@@ -137,6 +138,7 @@ class Item:
         last_lineno,
         message="",
         confidence=DEFAULT_CONFIDENCE,
+        definition_node=None,
     ):
         self.name: str = name
         self.typ: str = typ
@@ -145,6 +147,7 @@ class Item:
         self.last_lineno: int = last_lineno
         self.message: str = message or f"unused {typ} '{name}'"
         self.confidence: int = confidence
+        self.definition_node = definition_node
 
     @property
     def size(self):
@@ -256,13 +259,17 @@ class Vulture(ast.NodeVisitor):
         else:
             # When parsing type comments, visiting can throw SyntaxError.
             try:
-                self.visit(node)
+                self._scan_ast(node)
             except SyntaxError as err:
                 handle_syntax_error(err)
 
         # Reset the reachability internals for every module to reduce memory
         # usage.
         self.reachability.reset()
+
+    def _scan_ast(self, node):
+        """Visit a parsed module; subclasses may collect framework evidence."""
+        self.visit(node)
 
     def scavenge(self, paths, exclude=None):
         def prepare_pattern(pattern):
@@ -369,31 +376,34 @@ class Vulture(ast.NodeVisitor):
 
     @property
     def unused_classes(self):
-        return _get_unused_items(self.defined_classes, self.used_names)
+        return self._get_unused_items(self.defined_classes)
 
     @property
     def unused_funcs(self):
-        return _get_unused_items(self.defined_funcs, self.used_names)
+        return self._get_unused_items(self.defined_funcs)
 
     @property
     def unused_imports(self):
-        return _get_unused_items(self.defined_imports, self.used_names)
+        return self._get_unused_items(self.defined_imports)
 
     @property
     def unused_methods(self):
-        return _get_unused_items(self.defined_methods, self.used_names)
+        return self._get_unused_items(self.defined_methods)
 
     @property
     def unused_props(self):
-        return _get_unused_items(self.defined_props, self.used_names)
+        return self._get_unused_items(self.defined_props)
 
     @property
     def unused_vars(self):
-        return _get_unused_items(self.defined_vars, self.used_names)
+        return self._get_unused_items(self.defined_vars)
 
     @property
     def unused_attrs(self):
-        return _get_unused_items(self.defined_attrs, self.used_names)
+        return self._get_unused_items(self.defined_attrs)
+
+    def _get_unused_items(self, defined_items):
+        return _get_unused_items(defined_items, self.used_names)
 
     def _log(self, *args, file=None, force=False):
         if self.verbose or force:
@@ -459,8 +469,13 @@ class Vulture(ast.NodeVisitor):
                     lines.get_last_line_number(last_node),
                     message=message,
                     confidence=confidence,
+                    definition_node=self._definition_node(first_node),
                 )
             )
+
+    def _definition_node(self, node):
+        """Optional declaration metadata for framework-aware subclasses."""
+        return None
 
     def _define_variable(self, name, node, confidence=DEFAULT_CONFIDENCE):
         self._define(
